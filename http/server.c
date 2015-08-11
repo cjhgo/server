@@ -1,34 +1,44 @@
 #include "public.h"
-
+#include <pthread.h>
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *filename, char *cgiargs);
+int  parse_uri(char *uri, char *filename, char *cgiargs);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, 
 		 char *shortmsg, char *longmsg);
-
+void *thread(void *vargp);
 int main(int argc, char const *argv[])
 {
 	
-    int listenfd, connfd, port, clientlen;
+    int listenfd, *connfd, port, clientlen;
     struct sockaddr_in clientaddr;
-
     /* Check command line args */
-    if (argc != 2) {
-	fprintf(stderr, "usage: %s <port>\n", argv[0]);
-	exit(1);
+    if (argc != 2) 
+    {
+	    fprintf(stderr, "usage: %s <port>\n", argv[0]);
+	    exit(1);
     }
     port = atoi(argv[1]);
-
+    
     listenfd = Open_listenfd(port);
-    while (1) {
-	clientlen = sizeof(clientaddr);
-	connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
-	doit(connfd);                                             //line:netp:tiny:doit
-	close(connfd);                                            //line:netp:tiny:close
+    while (true) 
+    {
+       pthread_t tid;
+     	 clientlen = sizeof(clientaddr);
+       connfd=malloc(sizeof(int));
+	     *connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
+       pthread_create(&tid,NULL,thread,connfd);
     }
+}
+void *thread(void *vargp)
+{
+    int connfd=*((int *) vargp);
+    pthread_detach(pthread_self());
+    free(vargp);
+    doit(connfd);                                             //line:netp:tiny:doit
+	  close(connfd);                                            //line:netp:tiny:close
 }
 void doit(int fd)
 {
@@ -114,8 +124,7 @@ void read_requesthdrs(rio_t *rp)
     }
     return;
 }
-int
-parse_uri(char *uri,char *filename,char *cgiargs)
+int parse_uri(char *uri,char *filename,char *cgiargs)
 {
 	char *ptr;
 
@@ -191,4 +200,5 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
     }
     Wait(NULL); /* Parent waits for and reaps child */ //line:netp:servedynamic:wait
 }
+
 
